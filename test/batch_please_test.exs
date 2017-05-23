@@ -7,23 +7,3 @@ defmodule BatchPleaseTest do
   end
 end
 
-defmodule Poop do
-  def poop1 do
-    quote do
-      use Butts
-      use Poopers
-    end
-  end
-
-  def poop2 do
-    quote do
-      @behaviour Butts
-      @tag lols
-    end
-  end
-
-  defmacro poop do
-    poop1() ++ poop2()
-  end
-end
-
