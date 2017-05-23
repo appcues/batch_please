@@ -21,6 +21,7 @@ defmodule BatchPlease.MemoryBatcher do
 
       def batch_init(opts), do: BatchPlease.MemoryBatcher.batch_init(opts)
       def batch_add_item(batch, item), do: BatchPlease.MemoryBatcher.batch_add_item(batch, item)
+      def batch_pre_process(batch), do: BatchPlease.MemoryBatcher.batch_pre_process(batch)
     end
   end
 
