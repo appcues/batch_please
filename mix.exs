@@ -16,7 +16,7 @@ defmodule BatchPlease.Mixfile do
     [
       maintainers: ["pete gamache <pete@appcues.com>"],
       licenses: ["MIT"],
-      links: %{github: "https://github.com/appcues/batch-please"},
+      links: %{github: "https://github.com/appcues/batch_please"},
     ]
   end
 
