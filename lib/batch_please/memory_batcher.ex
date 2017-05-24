@@ -15,10 +15,6 @@ defmodule BatchPlease.MemoryBatcher do
     quote do
       use BatchPlease, unquote(opts)
 
-      #use GenServer
-      #def init(args), do: BatchPlease.init(unquote(opts) ++ args, __MODULE__)
-      #def handle_call(msg, from, state), do: BatchPlease.handle_call(msg, from, state)
-
       def batch_init(opts), do: BatchPlease.MemoryBatcher.batch_init(opts)
       def batch_add_item(batch, item), do: BatchPlease.MemoryBatcher.batch_add_item(batch, item)
       def batch_pre_process(batch), do: BatchPlease.MemoryBatcher.batch_pre_process(batch)

@@ -8,9 +8,7 @@ defmodule BatchPlease.MemoryBatcherTest do
   end
 
   def get_state(server) do
-    {:status, _pid, _module, items} = :sys.get_status(server)
-    {:data, [{'State', state}]} = items |> List.last |> List.last
-    state
+    BatchPlease.get_internal_state(server)
   end
 
   context "MemoryBatcher" do

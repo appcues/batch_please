@@ -43,6 +43,10 @@ defmodule BatchPlease do
 
   """
 
+  import BatchPlease.DynamicResolvers
+
+
+
   #### Internal types
 
   @typedoc ~S"""
@@ -59,7 +63,9 @@ defmodule BatchPlease do
 
     batch_init: ((opts) -> batch_return),
     batch_add_item: ((batch, item) -> batch_return),
+    batch_pre_process: ((batch) -> batch_return),
     batch_process: ((batch) -> ok_or_error),
+    batch_post_process: ((batch) -> ok_or_error),
     batch_terminate: ((batch) -> ok_or_error),
 
     max_batch_size: non_neg_integer | nil,
@@ -182,71 +188,10 @@ defmodule BatchPlease do
   end
 
 
-
-  #### dynamic invocations
-
   @doc false
-  def do_batch_init(state, opts) do
-    cond do
-      state.batch_init ->
-        state.batch_init.(opts)
-      function_exported?(state.module, :batch_init, 1) ->
-        state.module.batch_init(opts)
-      :else ->
-        raise UndefinedFunctionError, message: "batch_init/1 is not defined locally or in module #{state.module}"
-    end
+  def get_internal_state(batch_server) do
+    GenServer.call(batch_server, {:get_internal_state})
   end
-
-  @doc false
-  def do_batch_add_item(state, batch, item) do
-    cond do
-      state.batch_add_item ->
-        state.batch_add_item.(batch, item)
-      function_exported?(state.module, :batch_add_item, 2) ->
-        state.module.batch_add_item(batch, item)
-      :else ->
-        raise UndefinedFunctionError, message: "batch_add_item/2 is not defined locally or in module #{state.module}"
-    end
-  end
-
-  @doc false
-  def do_batch_pre_process(state, batch) do
-    cond do
-      state.batch_pre_process ->
-        state.batch_pre_process.(batch)
-      function_exported?(state.module, :batch_pre_process, 1) ->
-        state.module.batch_pre_process(batch)
-      :else ->
-        {:ok, batch}
-    end
-  end
-
-  @doc false
-  def do_batch_process(state, batch) do
-    {:ok, batch} = do_batch_pre_process(state, batch)
-
-    cond do
-      state.batch_process ->
-        state.batch_process.(batch)
-      function_exported?(state.module, :batch_process, 1) ->
-        state.module.batch_process(batch)
-      :else ->
-        raise UndefinedFunctionError, message: "batch_process/1 is not defined locally or in module #{state.module}"
-    end
-  end
-
-  @doc false
-  def do_batch_terminate(state, batch) do
-    cond do
-      state.batch_terminate ->
-        state.batch_terminate.(state.batch)
-      function_exported?(state.module, :batch_terminate, 1) ->
-        state.module.batch_terminate(state.batch)
-      :else ->
-        :ok
-    end
-  end
-
 
 
   #### GenServer implementation
@@ -258,11 +203,12 @@ defmodule BatchPlease do
       opts: opts,     ## invocation opts
       module: module, ## module containing implementation (if any)
 
-      batch_init: opts[:batch_init],           ## overrides module impl
-      batch_add_item: opts[:batch_add_item],   ## overrides module impl
-      batch_pre_process: opts[:batch_pre_process],     ## overrides module impl
-      batch_process: opts[:batch_process],     ## overrides module impl
-      batch_terminate: opts[:batch_terminate], ## overrides module impl
+      batch_init: opts[:batch_init],                 ## overrides module impl
+      batch_add_item: opts[:batch_add_item],         ## overrides module impl
+      batch_pre_process: opts[:batch_pre_process],   ## overrides module impl
+      batch_post_process: opts[:batch_post_process], ## overrides module impl
+      batch_process: opts[:batch_process],           ## overrides module impl
+      batch_terminate: opts[:batch_terminate],       ## overrides module impl
 
       max_batch_size: opts[:max_batch_size],       ## nil == no limit
 
@@ -290,7 +236,7 @@ defmodule BatchPlease do
     ## FIXME duplicated logic from :flush
     state = cond do
       state.max_batch_size && state.max_batch_size <= state.current_item_count ->
-        :ok = do_batch_process(state, state.batch)
+        :ok = process(state, state.batch)
         {:ok, new_batch} = do_batch_init(state, state.opts)
         %{state |
           batch: new_batch,
@@ -332,10 +278,26 @@ defmodule BatchPlease do
     end
   end
 
+  def handle_call({:get_internal_state}, _from, state) do
+    {:reply, state, state}
+  end
+
   @doc false
   def terminate(reason, state) do
     do_batch_terminate(state, state.batch)
   end
+
+
+
+
+  defp process(state, batch) do
+    with {:ok, batch} <- do_batch_pre_process(state, batch),
+         :ok <- do_batch_process(state, batch)
+    do
+      do_batch_post_process(state, batch)
+    end
+  end
+
 
 
   #### `use BatchPlease`
