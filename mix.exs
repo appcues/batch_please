@@ -28,6 +28,7 @@ defmodule BatchPlease.Mixfile do
     [
       {:poison, "> 1.0.0", optional: true},
       {:ex_spec, "~> 2.0", only: :test},
+      {:ex_doc, "> 0.0.0", only: :dev},
     ]
   end
 end
