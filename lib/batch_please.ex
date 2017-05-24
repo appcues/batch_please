@@ -1,46 +1,46 @@
 defmodule BatchPlease do
   @moduledoc ~S"""
+  BatchPlease is a tool for collecting batches of items, and doing something
+  with each batch when it reaches a certain size or age.
 
+  It is built on top of GenServer, implemented as a behaviour,
+  and invoked through `use BatchPlease`.
 
-  Usage example:
+  It is useful to build specialized batch collectors on top of BatchPlease,
+  in order to abstract more details from the end user.  Examples of this
+  approach include `BatchPlease.MemoryBatcher` (which stores items in memory
+  when batching) and `BatchPlease.FileBatcher` (which encodes items to
+  string format and accumulates them in an on-disk file until ready for
+  processing).
 
-      iex> defmodule MyBatcher do
-      ...>   use BatchPlease
-      ...>   @behaviour BatchPlease
-      ...>
-      ...>   def batch_init(_opts) do
-      ...>     {:ok, %{items: []}}
-      ...>   end
-      ...>
-      ...>   def batch_add_item(state, item) do
-      ...>     {:ok, %{state | items: [item | state.items]}}
-      ...>   end
-      ...>
-      ...>   def batch_process(state) do
-      ...>     state.items
-      ...>     |> Enum.reverse
-      ...>     |> Enum.each(&IO.inspect/1)
-      ...>
-      ...>     :ok
-      ...>   end
-      ...> end
-      iex> {:ok, batch_server} = GenServer.start_link(MyBatcher, max_batch_size: 2)
-      iex> BatchPlease.add_item(batch_server, 1)
-      :ok
-      # no output
-      iex> BatchPlease.add_item(batch_server, 2)
-      :ok
-      # output:
-      # 1
-      # 2
-      iex> BatchPlease.add_item(batch_server, 3)
-      :ok
-      # no output
-      iex> BatchPlease.flush(batch_server)
-      :ok
-      # output:
-      # 3
+  Simple/trivial usage example:
 
+      defmodule Summer do
+        use BatchPlease, max_batch_size: 3
+
+        def batch_init(_opts) do
+          {:ok, %{sum: 0}}
+        end
+
+        def batch_add_item(batch, item) do
+          {:ok, %{batch | sum: batch.sum + item}}
+        end
+
+        def batch_process(batch) do
+          IO.puts("This batch added up to #{batch.sum}")
+          :ok
+        end
+      end
+
+      {:ok, pid} = GenServer.start_link(Summer)
+
+      BatchPlease.add_item(pid, 1)
+      BatchPlease.add_item(pid, 2)
+      BatchPlease.add_item(pid, 3) # prints "This batch added up to 6"
+
+      BatchPlease.add_item(pid, 4)
+      BatchPlease.add_item(pid, 5)
+      BatchPlease.add_item(pid, 6) # prints "This batch added up to 15"
   """
 
   import BatchPlease.DynamicResolvers
@@ -134,9 +134,9 @@ defmodule BatchPlease do
 
   @doc ~S"""
   Performs some pre-processing on the batch, before it is passed to
-  `batch_process/1`.  This is an optional callback.
+  `batch_process/1`.  Returns the updated batch state or an error message.
 
-  Returns the updated batch state or an error message.
+  This is an optional callback.
   """
   @callback batch_pre_process(batch) :: batch_return
 
@@ -154,16 +154,35 @@ defmodule BatchPlease do
 
 
   @doc ~S"""
+  Performs some post-processing on the batch, after `batch_process/1`
+  has completed successfully.  Does not return an updated batch, because
+  this operation is immediately followed by `batch_init/1` to create a new
+  batch.
+
+  Returns `:ok` on success, or `{:error, message}` otherwise.
+
+  This is an optional callback.
+  """
+  @callback batch_post_process(batch) :: ok_or_error
+
+
+  @doc ~S"""
   Cleans up batch state before the batcher process is terminated.
   Defaults to no-op.  This is not guaranteed to be called at
   termination time -- for more information, see:
   https://hexdocs.pm/elixir/GenServer.html#c:terminate/2
 
   Returns `:ok` on success, or `{:error, message}` otherwise.
+
+  This is an optional callback.
   """
   @callback batch_terminate(batch) :: ok_or_error
 
-  @optional_callbacks batch_terminate: 1, batch_pre_process: 1
+  @optional_callbacks [
+    batch_terminate: 1,
+    batch_pre_process: 1,
+    batch_post_process: 1,
+  ]
 
 
 
@@ -283,7 +302,7 @@ defmodule BatchPlease do
   end
 
   @doc false
-  def terminate(reason, state) do
+  def terminate(_reason, state) do
     do_batch_terminate(state, state.batch)
   end
 

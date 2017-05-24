@@ -4,7 +4,7 @@ defmodule BatchPlease.MemoryBatcherTest do
 
   defmodule TestBatcher do
     use BatchPlease.MemoryBatcher
-    def batch_process(batch), do: :ok
+    def batch_process(_batch), do: :ok
   end
 
   def get_state(server) do

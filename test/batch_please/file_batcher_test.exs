@@ -4,7 +4,7 @@ defmodule BatchPlease.FileBatcherTest do
 
   defmodule TestBatcher do
     use BatchPlease.FileBatcher
-    def batch_process(batch), do: :ok
+    def batch_process(_batch), do: :ok
   end
 
   def get_state(server) do

@@ -91,5 +91,5 @@ defmodule BatchPlease.DynamicResolvers do
         :ok
     end
   end
-
 end
+
