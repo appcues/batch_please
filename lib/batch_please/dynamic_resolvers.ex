@@ -91,5 +91,18 @@ defmodule BatchPlease.DynamicResolvers do
         :ok
     end
   end
+
+  @doc false
+  @spec do_should_flush(BatchPlease.batch_server_state) :: boolean
+  def do_should_flush(state) do
+    cond do
+      state.should_flush ->
+        state.should_flush.(state)
+      function_exported?(state.module, :should_flush, 1) ->
+        state.module.should_flush(state)
+      :else
+        false
+    end
+  end
 end
 

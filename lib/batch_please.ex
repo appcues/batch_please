@@ -178,10 +178,21 @@ defmodule BatchPlease do
   """
   @callback batch_terminate(batch) :: ok_or_error
 
+
+  @doc ~S"""
+  Given the current module state, returns whether the current batch
+  should be processed now.  Precedes the handling of `max_batch_size`
+  (but does not replace it).
+
+  This is an optional callback.
+  """
+  @callback should_flush(batch_server_state) :: boolean
+
   @optional_callbacks [
     batch_terminate: 1,
     batch_pre_process: 1,
     batch_post_process: 1,
+    should_flush: 1,
   ]
 
 
@@ -203,13 +214,13 @@ defmodule BatchPlease do
   """
   @spec flush(batch_server) :: :ok | {:error, String.t}
   def flush(batch_server) do
-    GenServer.call(batch_server, {:flush})
+    GenServer.call(batch_server, :flush)
   end
 
 
   @doc false
   def get_internal_state(batch_server) do
-    GenServer.call(batch_server, {:get_internal_state})
+    GenServer.call(batch_server, :get_internal_state)
   end
 
 
@@ -228,6 +239,7 @@ defmodule BatchPlease do
       batch_post_process: opts[:batch_post_process], ## overrides module impl
       batch_process: opts[:batch_process],           ## overrides module impl
       batch_terminate: opts[:batch_terminate],       ## overrides module impl
+      should_flush: opts[:should_flush],             ## overrides module impl
 
       max_batch_size: opts[:max_batch_size],       ## nil == no limit
 
@@ -252,6 +264,51 @@ defmodule BatchPlease do
 
   @doc false
   def handle_call({:add_item, item}, _from, state) do
+    {reply, state} = handle_add_item(state, item)
+    {:reply, reply, state}
+  end
+
+  def handle_call(:flush, _from, state) do
+    {reply, state} = handle_flush(state)
+    {:reply, reply, state}
+  end
+
+  def handle_call(:get_internal_state, _from, state) do
+    {:reply, state, state}
+  end
+
+
+
+
+  def handle_add_item(state, item) do
+    with {:ok, state} <- autoflush_state(state),
+         {:ok, state} <- add_item_to_state(state, item),
+         {:ok, state} <- autoflush_state(state)
+    do
+      {:ok, state}
+    else
+      {:error, msg} -> {{:error, msg}, state}
+    end
+  end
+
+  def autoflush_state(state) do
+    should_flush =
+      do_should_flush(state) ||
+      (state.max_batch_size && state.max_batch_size >= state.current_item_count)
+
+    if should_flush do
+      flush(state)
+    else
+      {:ok, state}
+    end
+  end
+
+
+
+
+
+
+  def old_add_item do
     ## FIXME duplicated logic from :flush
     state = cond do
       state.max_batch_size && state.max_batch_size <= state.current_item_count ->
@@ -268,13 +325,23 @@ defmodule BatchPlease do
         state
     end
 
+    with {:ok, batch} <- autoflush(state, state.batch),
+         {:ok, batch} <- do_batch_add_item(state, batch, item),
+         {:ok, batch} <- autoflush(state, batch}
+    do
+      {:reply, :ok, %{state |
+        batch: batch,
+        current_item_count: state.current_item_count + 1,
+        total_item_count: state.total_item_count + 1,
+        last_item: item,
+      }}
+    else
+      {:error, msg}=e -> {:reply, e, state
+    end
+
     case do_batch_add_item(state, state.batch, item) do
       {:ok, batch} ->
         {:reply, :ok, %{state |
-          batch: batch,
-          current_item_count: state.current_item_count + 1,
-          total_item_count: state.total_item_count + 1,
-          last_item: item,
         }}
       {:error, msg} ->
         {:reply, {:error, msg}, state}
@@ -297,10 +364,6 @@ defmodule BatchPlease do
     end
   end
 
-  def handle_call({:get_internal_state}, _from, state) do
-    {:reply, state, state}
-  end
-
   @doc false
   def terminate(_reason, state) do
     do_batch_terminate(state, state.batch)
@@ -315,6 +378,10 @@ defmodule BatchPlease do
     do
       do_batch_post_process(state, batch)
     end
+  end
+
+  defp autoflush(_state, batch) do
+    {:ok, batch}
   end
 
 
