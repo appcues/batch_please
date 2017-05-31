@@ -52,10 +52,11 @@ defmodule BatchPlease.FileBatcher do
       {:ok, %{
         filename: filename,
         file: file,
+        encode: opts[:encode],
+        decode: opts[:decode],
       }}
     end
   end
-
 
   @doc false
   def batch_add_item(batch, item) do
@@ -75,19 +76,32 @@ defmodule BatchPlease.FileBatcher do
     end
   end
 
-  ## TODO batch_post_process
-
-
-  def do_encode(batch, item) do
-    ## TODO un-hardcode this
-    Poison.encode(item)
+  @doc false
+  def batch_post_process(batch) do
+    File.rm(batch.filename)
   end
 
-  def do_decode(batch, item) do
-    ## TODO un-hardcode this
-    Poison.decode(item)
+  defp do_encode(batch, item) do
+    cond do
+      batch.encode ->
+        batch.encode.(item)
+      {:module, _} = Code.ensure_loaded(Poison) ->
+        Poison.encode(item)
+      :else ->
+        raise UndefinedFunctionError, message: "no `encode` function was provided, and `Poison.encode/1` is not available"
+    end
   end
 
+  defp do_decode(batch, item) do
+    cond do
+      batch.decode ->
+        batch.decode.(item)
+      {:module, _} = Code.ensure_loaded(Poison) ->
+        Poison.decode(item)
+      :else ->
+        raise UndefinedFunctionError, message: "no `decode` function was provided, and `Poison.decode/1` is not available"
+    end
+  end
 
   defp make_filename(dir) do
     "#{dir}/#{:erlang.system_time(:milli_seconds)}.batch"
@@ -99,8 +113,8 @@ defmodule BatchPlease.FileBatcher do
       def batch_init(opts), do: BatchPlease.FileBatcher.batch_init(opts)
       def batch_add_item(batch, item), do: BatchPlease.FileBatcher.batch_add_item(batch, item)
       def batch_pre_process(batch), do: BatchPlease.FileBatcher.batch_pre_process(batch)
+      def batch_post_process(batch), do: BatchPlease.FileBatcher.batch_post_process(batch)
     end
   end
-
 end
 

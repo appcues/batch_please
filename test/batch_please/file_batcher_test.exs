@@ -47,6 +47,9 @@ defmodule BatchPlease.FileBatcherTest do
 
       BatchPlease.add_item(b0, 6)
 
+      ## Ensure old file is gone
+      assert({:error, :enoent} = File.rm(filename1))
+
       state = get_state(b0)
       filename2 = state.batch.filename
       assert(filename1 != filename2)
