@@ -52,7 +52,7 @@ defmodule BatchPlease do
   defmacro __using__(opts) do
     quote do
       use GenServer
-      def init(args), do: BatchPlease.init(unquote(opts) ++ args, __MODULE__)
+      def init(args), do: BatchPlease.init(args ++ unquote(opts), __MODULE__)
       def handle_call(msg, from, state), do: BatchPlease.handle_call(msg, from, state)
       def terminate(reason, state), do: BatchPlease.terminate(reason, state)
       @behaviour BatchPlease
@@ -283,8 +283,8 @@ defmodule BatchPlease do
         batch_init: opts[:batch_init],
         batch_add_item: opts[:batch_add_item],
         batch_pre_process: opts[:batch_pre_process],
-        batch_post_process: opts[:batch_post_process],
         batch_process: opts[:batch_process],
+        batch_post_process: opts[:batch_post_process],
         batch_terminate: opts[:batch_terminate],
         should_flush: opts[:should_flush],
       },
@@ -388,12 +388,14 @@ defmodule BatchPlease do
   @spec should_flush_on_age?(state) :: boolean
   defp should_flush_on_age?(state) do
     mtslf = state.config.max_time_since_last_flush
+    lf = state.times.last_flush
     mtsfi = state.config.max_time_since_first_item
+    fi = state.times.first_item_of_batch
 
     cond do
-      mtslf && (mono_now() >= mtslf + state.times.last_flush) ->
+      mtslf && lf && (mono_now() >= mtslf + lf) ->
         true
-      mtsfi && (mono_now() >= mtsfi + state.times.first_item_of_batch) ->
+      mtsfi && fi && (mono_now() >= mtsfi + fi) ->
         true
       :else ->
         false
@@ -419,6 +421,7 @@ defmodule BatchPlease do
           },
           times: %{state.times |
             last_flush: mono_now(),
+            first_item_of_batch: nil,
           },
         }}
       {:error, msg} ->

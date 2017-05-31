@@ -3,7 +3,7 @@ defmodule BatchPlease.MemoryBatcherTest do
   doctest BatchPlease.MemoryBatcher
 
   defmodule TestBatcher do
-    use BatchPlease.MemoryBatcher
+    use BatchPlease.MemoryBatcher, lazy_flush: true
     def batch_process(_batch), do: :ok
   end
 
