@@ -6,7 +6,7 @@ or age.
 
 ## Should I use this in production?
 
-As of version 0.1.x: no, not yet.
+As of version 0.2.x: no, not yet.
 
 ## Installation
 
@@ -14,7 +14,7 @@ As of version 0.1.x: no, not yet.
 
   ```elixir
   def deps do
-    [{:batch_please, "~> 0.1.0"}]
+    [{:batch_please, "~> 0.2.0"}]
   end
   ```
 
