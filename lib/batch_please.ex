@@ -32,7 +32,7 @@ defmodule BatchPlease do
         end
       end
 
-      {:ok, pid} = GenServer.start_link(Summer)
+      {:ok, pid} = GenServer.start_link(Summer, [])
 
       BatchPlease.add_item(pid, 1)
       BatchPlease.add_item(pid, 2)
