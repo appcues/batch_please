@@ -19,14 +19,14 @@ defmodule BatchPlease.FileBatcherTest do
       BatchPlease.add_item(b0, 2)
 
       state = get_state(b0)
-      assert(2 == state.current_item_count)
-      assert(2 == state.total_item_count)
+      assert(2 == state.counts.batch_items)
+      assert(2 == state.counts.total_items)
 
       BatchPlease.add_item(b0, 3)
 
       state = get_state(b0)
-      assert(1 == state.current_item_count)
-      assert(3 == state.total_item_count)
+      assert(1 == state.counts.batch_items)
+      assert(3 == state.counts.total_items)
 
       GenServer.stop(b0)
     end
