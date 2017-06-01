@@ -54,6 +54,8 @@ defmodule BatchPlease do
       use GenServer
       def init(args), do: BatchPlease.init(args ++ unquote(opts), __MODULE__)
       def handle_call(msg, from, state), do: BatchPlease.handle_call(msg, from, state)
+      def handle_cast(msg, state), do: BatchPlease.handle_cast(msg, state)
+      def handle_info(msg, state), do: BatchPlease.handle_info(msg, state)
       def terminate(reason, state), do: BatchPlease.terminate(reason, state)
       @behaviour BatchPlease
     end
@@ -239,20 +241,52 @@ defmodule BatchPlease do
   #### Public functions
 
   @doc ~S"""
-  Adds an item to a batch.
-  Returns `:ok` on success, or `{:error, message}` otherwise.
+  Adds an item to a batch asynchronously.
+
+  Set `opts[:error_pid]` to receive a message of the form `{:error, msg}`
+  in case this operation fails.  Alternately, use `sync_add_item/2` for
+  a synchronous version of this function.
+
+  Returns `:ok`.
   """
-  @spec add_item(batch_server, item) :: :ok | {:error, String.t}
-  def add_item(batch_server, item) do
+  @spec add_item(batch_server, item, Keyword.t) :: :ok
+  def add_item(batch_server, item, opts \\ []) do
+    GenServer.cast(batch_server, {:add_item, item, opts[:error_pid]})
+  end
+
+
+  @doc ~S"""
+  Adds an item to a batch synchronously.
+
+  Returns `:ok` or `{:error, msg}`.
+  """
+  @spec sync_add_item(batch_server, item) :: :ok | {:error, String.t}
+  def sync_add_item(batch_server, item) do
     GenServer.call(batch_server, {:add_item, item})
   end
 
+
   @doc ~S"""
-  Forces the processing and flushing of a batch.
-  Returns `:ok` on success, or `{:error, message}` otherwise.
+  Forces the processing and flushing of a batch asynchronously.
+
+  Set `opts[:error_pid]` to receive a message of the form `{:error, msg}`
+  in case this operation fails.  Alternately, use `sync_flush/1` for
+  a synchronous version of this function.
+
+  Returns `:ok`.
   """
-  @spec flush(batch_server) :: :ok | {:error, String.t}
-  def flush(batch_server) do
+  @spec flush(batch_server, Keyword.t) :: :ok | {:error, String.t}
+  def flush(batch_server, opts \\ []) do
+    GenServer.cast(batch_server, {:flush, opts[:error_pid]})
+  end
+
+  @doc ~S"""
+  Forces the processing and flushing of a batch synchronously.
+
+  Returns `:ok` or `{:error, msg}`.
+  """
+  @spec sync_flush(batch_server) :: :ok | {:error, String.t}
+  def sync_flush(batch_server) do
     GenServer.call(batch_server, :flush)
   end
 
@@ -326,8 +360,29 @@ defmodule BatchPlease do
   end
 
   @doc false
+  def handle_cast({:add_item, item, error_pid}, state) do
+    case handle_add_item(state, item) do
+      {{:error, msg}, _state} ->
+        if error_pid, do: send(error_pid, {:error, msg})
+        {:noreply, state}
+      {_reply, new_state} ->
+        {:noreply, new_state}
+    end
+  end
+
+  def handle_cast({:flush, error_pid}, state) do
+    case handle_flush(state) do
+      {{:error, msg}, _state} ->
+        if error_pid, do: send(error_pid, {:error, msg})
+        {:noreply, state}
+      {_reply, new_state} ->
+        {:noreply, new_state}
+    end
+  end
+
+  @doc false
   def handle_info({:timeout, _timer, :flush}, state) do
-    GenServer.cast(self, :flush)
+    GenServer.cast(self, {:flush, nil})  # TODO put error handling here
     {:noreply, set_timer(state)}
   end
 
@@ -350,7 +405,7 @@ defmodule BatchPlease do
     do
       {:ok, state}
     else
-      {:error, msg} -> {{:error, msg}, state}
+      {{:error, msg}, _state} -> {{:error, msg}, state}
     end
   end
 

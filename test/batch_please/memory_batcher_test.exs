@@ -41,6 +41,7 @@ defmodule BatchPlease.MemoryBatcherTest do
       BatchPlease.add_item(b1, 2)
       BatchPlease.add_item(b1, 3)
 
+      :timer.sleep(100)
       b0_state = get_state(b0)
       assert([[1, 2]] == b0_state.batch.items)
 
