@@ -3,8 +3,8 @@ defmodule BatchPlease.FileBatcherTest do
   doctest BatchPlease.FileBatcher
 
   defmodule TestBatcher do
-    use BatchPlease.FileBatcher, lazy_flush: true
-    def batch_process(_batch), do: :ok
+    use BatchPlease.FileBatcher
+    def batch_flush(_batch), do: :ok
   end
 
   def get_state(server) do
@@ -16,12 +16,12 @@ defmodule BatchPlease.FileBatcherTest do
       {:ok, b0} = GenServer.start_link(TestBatcher, max_batch_size: 2)
 
       BatchPlease.sync_add_item(b0, 1)
-      BatchPlease.sync_add_item(b0, 2)
 
       state = get_state(b0)
-      assert(2 == state.counts.batch_items)
-      assert(2 == state.counts.total_items)
+      assert(1 == state.counts.batch_items)
+      assert(1 == state.counts.total_items)
 
+      BatchPlease.sync_add_item(b0, 2)
       BatchPlease.sync_add_item(b0, 3)
 
       state = get_state(b0)
@@ -38,13 +38,13 @@ defmodule BatchPlease.FileBatcherTest do
       BatchPlease.sync_add_item(b0, 2)
       BatchPlease.sync_add_item(b0, nil)
       BatchPlease.sync_add_item(b0, 4)
-      BatchPlease.sync_add_item(b0, 5)
 
       state = get_state(b0)
       filename1 = state.batch.filename
       contents = File.read!(filename1)
-      assert("1\n2\nnull\n4\n5\n" == contents)
+      assert("1\n2\nnull\n4\n" == contents)
 
+      BatchPlease.sync_add_item(b0, 5)
       BatchPlease.sync_add_item(b0, 6)
 
       ## Ensure old file is gone

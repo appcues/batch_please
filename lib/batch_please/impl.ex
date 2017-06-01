@@ -3,6 +3,7 @@ defmodule BatchPlease.Impl do
 
   import BatchPlease.DynamicResolvers
 
+
   #### GenServer implementation
 
   @doc false
@@ -16,7 +17,6 @@ defmodule BatchPlease.Impl do
       flush_timer: nil,  ## erlang timer for periodic flush
 
       config: %{
-        lazy_flush: opts[:lazy_flush],
         max_batch_size: opts[:max_batch_size],
         max_time_since_last_flush: opts[:max_time_since_last_flush],
         max_time_since_first_item: opts[:max_time_since_first_item],
@@ -26,9 +26,9 @@ defmodule BatchPlease.Impl do
       overrides: %{
         batch_init: opts[:batch_init],
         batch_add_item: opts[:batch_add_item],
-        batch_pre_process: opts[:batch_pre_process],
-        batch_process: opts[:batch_process],
-        batch_post_process: opts[:batch_post_process],
+        batch_pre_flush: opts[:batch_pre_flush],
+        batch_flush: opts[:batch_flush],
+        batch_post_flush: opts[:batch_post_flush],
         batch_terminate: opts[:batch_terminate],
         should_flush: opts[:should_flush],
       },
@@ -100,7 +100,6 @@ defmodule BatchPlease.Impl do
 
 
 
-
   #### internal impl
 
   ## Adds an item to the state, flushing as necessary.
@@ -108,7 +107,7 @@ defmodule BatchPlease.Impl do
   defp handle_add_item(state, item) do
     with {:ok, state} <- autoflush_state(state),
          {:ok, state} <- add_item_to_state(state, item),
-         {:ok, state} <- eager_flush_state(state)
+         {:ok, state} <- autoflush_state(state)
     do
       {:ok, state}
     else
@@ -173,11 +172,6 @@ defmodule BatchPlease.Impl do
     end
   end
 
-  @spec eager_flush_state(BatchPlease.state) :: BatchPlease.state_return
-  defp eager_flush_state(state) do
-    if state.config.lazy_flush, do: {:ok, state}, else: autoflush_state(state)
-  end
-
 
   @spec handle_flush(BatchPlease.state) :: BatchPlease.reply_return
   defp handle_flush(state) do
@@ -215,10 +209,10 @@ defmodule BatchPlease.Impl do
   ## Performs pre, regular, and post processing
   @spec process(BatchPlease.state, BatchPlease.batch) :: BatchPlease.ok_or_error
   defp process(state, batch) do
-    with {:ok, batch} <- do_batch_pre_process(state, batch),
-         :ok <- do_batch_process(state, batch)
+    with {:ok, batch} <- do_batch_pre_flush(state, batch),
+         :ok <- do_batch_flush(state, batch)
     do
-      do_batch_post_process(state, batch)
+      do_batch_post_flush(state, batch)
     end
   end
 

@@ -4,14 +4,7 @@ defmodule BatchPlease do
   with each batch when it reaches a certain size or age.
 
   It is built on top of GenServer, implemented as a behaviour,
-  and invoked through `use BatchPlease`.
-
-  It is useful to build specialized batch collectors on top of BatchPlease,
-  in order to abstract more details from the end user.  Examples of this
-  approach include `BatchPlease.MemoryBatcher` (which stores items in memory
-  when batching) and `BatchPlease.FileBatcher` (which encodes items to
-  string format and accumulates them in an on-disk file until ready for
-  processing).
+  and usually invoked through `use BatchPlease`.
 
   Simple/trivial usage example:
 
@@ -26,7 +19,7 @@ defmodule BatchPlease do
           {:ok, %{batch | sum: batch.sum + item}}
         end
 
-        def batch_process(batch) do
+        def batch_flush(batch) do
           IO.puts("This batch added up to #{batch.sum}")
           :ok
         end
@@ -41,6 +34,74 @@ defmodule BatchPlease do
       BatchPlease.add_item(pid, 4)
       BatchPlease.add_item(pid, 5)
       BatchPlease.add_item(pid, 6) # prints "This batch added up to 15"
+
+  It is useful to build specialized batch collectors on top of BatchPlease,
+  Examples of this approach include `BatchPlease.MemoryBatcher`
+  (which stores items in memory when batching) and `BatchPlease.FileBatcher`
+  (which encodes items to string format and accumulates them in an on-disk
+  file until ready for processing).
+
+
+  ## Behaviour
+
+  The BatchPlease behaviour consists of several required callbacks:
+
+  * `batch_init/1` takes a keyword list of options (from `use BatchPlease`
+    and `GenServer.start_link/2-3`) and returns `{:error, msg}` or
+    `{:ok, state}`, where `state` is a map representing the state of
+    a single batch.  This function is called at the start of every batch.
+
+  * `batch_add_item/2` adds an item to the batch state, returning
+    `{:ok, state}` or `{:error, msg}`.
+
+  * `batch_flush/1` performs an operation on the batch when it is ready
+    for processing.  It returns `:ok` or `{:error, msg}`; returning an
+    updated state is not necessary, because iff `batch_flush/1` returns
+    successfully, a new batch is created with `batch_init/1`.
+
+  As well as some optional callbacks:
+
+  * `batch_pre_flush/1` can be used to perform pre-processing on a batch
+    before `batch_flush/1` is called.
+
+  * `batch_post_flush/1` can be used to perform post-processing on a batch
+    after `batch_flush/1` returns successfully.
+
+  * `batch_terminate/1` performs cleanup on a batch when the batch server
+    is terminating.  Warning: it hooks into `GenServer.terminate/2`, which
+    is not guaranteed to execute upon server shutdown!  See the GenServer
+    docs for more information:
+    https://hexdocs.pm/elixir/GenServer.html#c:terminate/2
+
+  * `should_flush/1` is used to implement custom logic to determine when to
+    flush a batch.
+
+
+  ## Options
+
+  BatchPlease supports several options to customize operation.
+
+  They deal with flushing.  Each may be set to `nil` to disable
+  that mode of behavior.
+
+  * `max_batch_size: X` can be set to a positive integer to specify that
+    flushing should occur when the batch hits size `X`.
+    This check takes place before and after every `batch_add_item/2` call.
+
+  * `max_time_since_last_flush: X` can be set to a positive integer to specify
+    that a batch should flush if at least `X` milliseconds have passed since
+    the last flush.
+    This check takes place before and after every `batch_add_item/2` call.
+
+  * `max_time_since_first_item: X` can be set to a positive integer to specify
+    that a batch should flush if at least `X` milliseconds have passed
+    since the time the first item was added to the current batch.
+    This check takes place before and after every `batch_add_item/2` call.
+
+  * `flush_interval: X` can be set to a positive integer to specify that
+    flushing should take place every `X` milliseconds.  This option uses an
+    internal timer, and is therefore independent from `batch_add_item/2`.
+
   """
 
 
@@ -61,7 +122,7 @@ defmodule BatchPlease do
   end
 
 
-  #### Internal types
+  #### Types
 
   @typedoc ~S"""
   A GenServer performing as a batch server.
@@ -95,9 +156,9 @@ defmodule BatchPlease do
   @type state_overrides :: %{
     batch_init: ((opts) -> batch_return) | nil,
     batch_add_item: ((batch, item) -> batch_return) | nil,
-    batch_pre_process: ((batch) -> batch_return) | nil,
-    batch_process: ((batch) -> ok_or_error) | nil,
-    batch_post_process: ((batch) -> ok_or_error) | nil,
+    batch_pre_flush: ((batch) -> batch_return) | nil,
+    batch_flush: ((batch) -> ok_or_error) | nil,
+    batch_post_flush: ((batch) -> ok_or_error) | nil,
     batch_terminate: ((batch) -> ok_or_error) | nil,
     should_flush: ((state) -> boolean) | nil,
   }
@@ -113,9 +174,9 @@ defmodule BatchPlease do
     last_flush: integer | nil,
   }
 
-  @typep state_return :: {:ok, state} | {:error, String.t}
+  @type state_return :: {:ok, state} | {:error, String.t}
 
-  @typep reply_return :: {ok_or_error, state}
+  @type reply_return :: {ok_or_error, state}
 
   @typedoc ~S"""
   A map representing the state of the current batch.
@@ -131,7 +192,7 @@ defmodule BatchPlease do
 
   @typedoc ~S"""
   Return value of functions which may fail, but do not return a new batch
-  state (`batch_process/1` and `batch_terminate/1`).
+  state (`batch_flush/1` and `batch_terminate/1`).
   """
   @type ok_or_error :: :ok | {:error, String.t}
 
@@ -146,28 +207,30 @@ defmodule BatchPlease do
   @type opts :: [option]
 
   @type option ::
-    {:eager_flush, boolean} |
     {:max_batch_size, non_neg_integer | nil} |
     {:max_time_since_last_flush, non_neg_integer | nil} |
-    {:max_time_since_first_item, non_neg_integer | nil}
+    {:max_time_since_first_item, non_neg_integer | nil} |
+    {:flush_interval, non_neg_integer | nil}
 
 
 
-  #### Behaviour stuff
+  #### Behaviour
 
   @doc ~S"""
-  Creates a new batch state, given the configuration options in `opts`.
-  This function is called not just once, but every time a new batch
-  is created (i.e., at startup and after every flush).
-  Defaults to creating an empty map, returning `{:ok, %{}}`.
+  Creates a new batch state, given the configuration options in `opts`,
+  which come from the options given in `use BatchPlease` and
+  `GenServer.start_link/2-3`.
 
-  Returns the updated batch state or an error message.
+  This function is called every time a new batch is created (i.e., at startup
+  and after every flush).
+
+  Returns the new batch state or an error message.
   """
   @callback batch_init(opts) :: batch_return
 
 
   @doc ~S"""
-  Adds an item to the batch represented in `batch`.
+  Adds an item to the batch.
 
   Returns the updated batch state or an error message.
   """
@@ -175,28 +238,24 @@ defmodule BatchPlease do
 
 
   @doc ~S"""
-  Performs some pre-processing on the batch, before it is passed to
-  `batch_process/1`.  Returns the updated batch state or an error message.
+  Performs some pre-processing on the batch before it is passed to
+  `batch_flush/1`.  Returns the updated batch state or an error message.
 
   This is an optional callback.
   """
-  @callback batch_pre_process(batch) :: batch_return
+  @callback batch_pre_flush(batch) :: batch_return
 
 
   @doc ~S"""
   Processes the batch, whatever that entails.
 
-  This function may operate synchronously or asynchronously,
-  according to developer preference.  If it operates synchronously,
-  calls to `BatchPlease.flush/1` will block until finished.
-
   Returns `:ok` on success, or `{:error, message}` otherwise.
   """
-  @callback batch_process(batch) :: ok_or_error
+  @callback batch_flush(batch) :: ok_or_error
 
 
   @doc ~S"""
-  Performs some post-processing on the batch, after `batch_process/1`
+  Performs some post-processing on the batch after `batch_flush/1`
   has completed successfully.  Does not return an updated batch, because
   this operation is immediately followed by `batch_init/1` to create a new
   batch.
@@ -205,7 +264,7 @@ defmodule BatchPlease do
 
   This is an optional callback.
   """
-  @callback batch_post_process(batch) :: ok_or_error
+  @callback batch_post_flush(batch) :: ok_or_error
 
 
   @doc ~S"""
@@ -223,8 +282,8 @@ defmodule BatchPlease do
 
   @doc ~S"""
   Given the current module state, returns whether the current batch
-  should be processed now.  Precedes the handling of `max_batch_size`
-  (but does not replace it).
+  should be processed now.  Does not prevent the evaluation of other
+  flushing options (e.g., `max_batch_size`, etc).
 
   This is an optional callback.
   """
@@ -232,10 +291,11 @@ defmodule BatchPlease do
 
   @optional_callbacks [
     batch_terminate: 1,
-    batch_pre_process: 1,
-    batch_post_process: 1,
+    batch_pre_flush: 1,
+    batch_post_flush: 1,
     should_flush: 1,
   ]
+
 
 
   #### Public API
@@ -257,6 +317,7 @@ defmodule BatchPlease do
 
   @doc ~S"""
   Adds an item to a batch synchronously.
+  Causes a flush if appropriate, also synchronously.
 
   Returns `:ok` or `{:error, msg}`.
   """
@@ -280,6 +341,7 @@ defmodule BatchPlease do
     GenServer.cast(batch_server, {:flush, opts[:error_pid]})
   end
 
+
   @doc ~S"""
   Forces the processing and flushing of a batch synchronously.
 
@@ -295,6 +357,5 @@ defmodule BatchPlease do
   def get_internal_state(batch_server) do
     GenServer.call(batch_server, :get_internal_state)
   end
-
 end
 

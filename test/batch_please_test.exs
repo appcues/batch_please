@@ -6,7 +6,7 @@ defmodule BatchPleaseTest do
     use BatchPlease, max_batch_size: 2
     def batch_init(_opts), do: {:ok, %{items: []}}
     def batch_add_item(batch, item), do: {:ok, %{batch | items: [item |batch.items]}}
-    def batch_process(_batch), do: :ok
+    def batch_flush(_batch), do: :ok
   end
 
   context "config" do
@@ -31,16 +31,6 @@ defmodule BatchPleaseTest do
       BatchPlease.add_item(pid, 2)
       state = BatchPlease.get_internal_state(pid)
       assert(state.counts.batch_items == 0)
-      GenServer.stop(pid)
-
-      {:ok, pid} = GenServer.start_link(TestBatcher, lazy_flush: true)
-      BatchPlease.add_item(pid, 1)
-      BatchPlease.add_item(pid, 2)
-      state = BatchPlease.get_internal_state(pid)
-      assert(state.counts.batch_items == 2)
-      BatchPlease.add_item(pid, 3)
-      state = BatchPlease.get_internal_state(pid)
-      assert(state.counts.batch_items == 1)
       GenServer.stop(pid)
     end
 
@@ -130,10 +120,10 @@ defmodule BatchPleaseTest do
       GenServer.stop(pid)
     end
 
-    it "respects batch_pre_process" do
+    it "respects batch_pre_flush" do
       listener = make_listener(self)
       {:ok, pid} = GenServer.start_link(TestBatcher,
-        batch_pre_process: fn (batch) -> send(listener, :hi); {:ok, batch} end)
+        batch_pre_flush: fn (batch) -> send(listener, :hi); {:ok, batch} end)
       BatchPlease.add_item(pid, 1)
       BatchPlease.add_item(pid, 2)
       BatchPlease.add_item(pid, 3)
@@ -141,10 +131,10 @@ defmodule BatchPleaseTest do
       GenServer.stop(pid)
     end
 
-    it "respects batch_process" do
+    it "respects batch_flush" do
       listener = make_listener(self)
       {:ok, pid} = GenServer.start_link(TestBatcher,
-        batch_process: fn (_batch) -> send(listener, :hi); :ok end)
+        batch_flush: fn (_batch) -> send(listener, :hi); :ok end)
       BatchPlease.add_item(pid, 1)
       BatchPlease.add_item(pid, 2)
       BatchPlease.add_item(pid, 3)
@@ -152,10 +142,10 @@ defmodule BatchPleaseTest do
       GenServer.stop(pid)
     end
 
-    it "respects batch_post_process" do
+    it "respects batch_post_flush" do
       listener = make_listener(self)
       {:ok, pid} = GenServer.start_link(TestBatcher,
-        batch_post_process: fn (_batch) -> send(listener, :hi); :ok end)
+        batch_post_flush: fn (_batch) -> send(listener, :hi); :ok end)
       BatchPlease.add_item(pid, 1)
       BatchPlease.add_item(pid, 2)
       BatchPlease.add_item(pid, 3)

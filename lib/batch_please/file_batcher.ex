@@ -63,7 +63,7 @@ defmodule BatchPlease.FileBatcher do
   end
 
   @doc false
-  def batch_pre_process(batch) do
+  def batch_pre_flush(batch) do
     with :ok <- File.close(batch.file)
     do
       {:ok, batch}
@@ -71,7 +71,7 @@ defmodule BatchPlease.FileBatcher do
   end
 
   @doc false
-  def batch_post_process(batch) do
+  def batch_post_flush(batch) do
     File.rm(batch.filename)
   end
 
@@ -95,8 +95,8 @@ defmodule BatchPlease.FileBatcher do
       use BatchPlease, unquote(opts)
       def batch_init(opts), do: BatchPlease.FileBatcher.batch_init(opts)
       def batch_add_item(batch, item), do: BatchPlease.FileBatcher.batch_add_item(batch, item)
-      def batch_pre_process(batch), do: BatchPlease.FileBatcher.batch_pre_process(batch)
-      def batch_post_process(batch), do: BatchPlease.FileBatcher.batch_post_process(batch)
+      def batch_pre_flush(batch), do: BatchPlease.FileBatcher.batch_pre_flush(batch)
+      def batch_post_flush(batch), do: BatchPlease.FileBatcher.batch_post_flush(batch)
     end
   end
 end

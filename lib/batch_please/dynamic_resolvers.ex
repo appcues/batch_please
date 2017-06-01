@@ -41,39 +41,39 @@ defmodule BatchPlease.DynamicResolvers do
   end
 
   @doc false
-  @spec do_batch_pre_process(BatchPlease.state, BatchPlease.batch) :: BatchPlease.batch_return
-  def do_batch_pre_process(state, batch) do
+  @spec do_batch_pre_flush(BatchPlease.state, BatchPlease.batch) :: BatchPlease.batch_return
+  def do_batch_pre_flush(state, batch) do
     cond do
-      state.overrides.batch_pre_process ->
-        state.overrides.batch_pre_process.(batch)
-      function_exported?(state.module, :batch_pre_process, 1) ->
-        state.module.batch_pre_process(batch)
+      state.overrides.batch_pre_flush ->
+        state.overrides.batch_pre_flush.(batch)
+      function_exported?(state.module, :batch_pre_flush, 1) ->
+        state.module.batch_pre_flush(batch)
       :else ->
         {:ok, batch}
     end
   end
 
   @doc false
-  @spec do_batch_process(BatchPlease.state, BatchPlease.batch) :: BatchPlease.ok_or_error | no_return
-  def do_batch_process(state, batch) do
+  @spec do_batch_flush(BatchPlease.state, BatchPlease.batch) :: BatchPlease.ok_or_error | no_return
+  def do_batch_flush(state, batch) do
     cond do
-      state.overrides.batch_process ->
-        state.overrides.batch_process.(batch)
-      function_exported?(state.module, :batch_process, 1) ->
-        state.module.batch_process(batch)
+      state.overrides.batch_flush ->
+        state.overrides.batch_flush.(batch)
+      function_exported?(state.module, :batch_flush, 1) ->
+        state.module.batch_flush(batch)
       :else ->
-        raise UndefinedFunctionError, message: "batch_process/1 is not defined locally or in module #{state.module}"
+        raise UndefinedFunctionError, message: "batch_flush/1 is not defined locally or in module #{state.module}"
     end
   end
 
   @doc false
-  @spec do_batch_post_process(BatchPlease.state, BatchPlease.batch) :: BatchPlease.ok_or_error
-  def do_batch_post_process(state, batch) do
+  @spec do_batch_post_flush(BatchPlease.state, BatchPlease.batch) :: BatchPlease.ok_or_error
+  def do_batch_post_flush(state, batch) do
     cond do
-      state.overrides.batch_post_process ->
-        state.overrides.batch_post_process.(batch)
-      function_exported?(state.module, :batch_post_process, 1) ->
-        state.module.batch_post_process(batch)
+      state.overrides.batch_post_flush ->
+        state.overrides.batch_post_flush.(batch)
+      function_exported?(state.module, :batch_post_flush, 1) ->
+        state.module.batch_post_flush(batch)
       :else ->
         :ok
     end
