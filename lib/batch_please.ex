@@ -87,6 +87,7 @@ defmodule BatchPlease do
     max_batch_size: non_neg_integer | nil,
     max_time_since_last_flush: non_neg_integer | nil,
     max_time_since_first_item: non_neg_integer | nil,
+    flush_interval: non_neg_integer | nil,
   }
 
   @type state_overrides :: %{
@@ -271,12 +272,14 @@ defmodule BatchPlease do
       module: module, ## module containing implementation (if any)
       batch: nil,     ## batch state
       last_item: nil, ## last item added
+      flush_timer: nil,  ## erlang timer for periodic flush
 
       config: %{
         lazy_flush: opts[:lazy_flush],
         max_batch_size: opts[:max_batch_size],
         max_time_since_last_flush: opts[:max_time_since_last_flush],
         max_time_since_first_item: opts[:max_time_since_first_item],
+        flush_interval: opts[:flush_interval],
       },
 
       overrides: %{
@@ -299,7 +302,7 @@ defmodule BatchPlease do
         last_flush: mono_now(),
         first_item_of_batch: nil,
       },
-    }
+    } |> set_timer
 
     {:ok, batch} = do_batch_init(state, opts)
 
@@ -320,6 +323,12 @@ defmodule BatchPlease do
 
   def handle_call(:get_internal_state, _from, state) do
     {:reply, state, state}
+  end
+
+  @doc false
+  def handle_info({:timeout, _timer, :flush}, state) do
+    GenServer.cast(self, :flush)
+    {:noreply, set_timer(state)}
   end
 
   @doc false
@@ -427,6 +436,16 @@ defmodule BatchPlease do
       {:error, msg} ->
         {{:error, msg}, state}
     end
+  end
+
+
+  defp set_timer(%{config: %{flush_interval: nil}}=state), do: state
+
+  defp set_timer(state) do
+    if state.flush_timer, do: :erlang.cancel_timer(state.flush_timer)
+    timer = :erlang.start_timer(state.config.flush_interval, self, :flush)
+    {:ok, new_state} = handle_flush(state)
+    %{new_state | flush_timer: timer}
   end
 
 

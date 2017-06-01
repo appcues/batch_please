@@ -10,17 +10,16 @@ defmodule BatchPlease.FileBatcher do
 
   `encode` is a function which takes an item as input and encodes it
   into string format.  It returns either `{:ok, encoded_item}` or
-  {:error, message}`.  Defaults to `&Poison.encode/1`.
+  {:error, message}`.  Defaults to `Poison.encode/1`.
 
   `decode` is a function which takes a string-encoded item as input
   and decodes it, returning either `{:ok, item}` or `{:error, message}`.
-  Defaults to `&Poison.decode/1`.
+  Defaults to `Poison.decode/1`.
   """
   @type batch :: %{
     filename: String.t,
     file: File.io_device,
-    encode: ((item) -> {:ok, String.t} | {:error, String.t}),
-    decode: ((String.t) -> {:ok, item} | {:error, String.t}),
+    encode: ((item) -> {:ok, binary} | {:error, String.t}),
   }
 
   @typedoc ~S"""
@@ -37,11 +36,7 @@ defmodule BatchPlease.FileBatcher do
   (default `/tmp`).
 
   `opts[:encode]` can be used to manually specify an encoder function.
-
-  `opts[:decode]` can be used to manually specify a decoder function.
   """
-
-  @doc false
   def batch_init(opts) do
     dir = (opts[:batch_directory] || "/tmp") |> String.replace_trailing("/", "")
     filename = make_filename(dir)
@@ -53,7 +48,6 @@ defmodule BatchPlease.FileBatcher do
         filename: filename,
         file: file,
         encode: opts[:encode],
-        decode: opts[:decode],
       }}
     end
   end
@@ -89,17 +83,6 @@ defmodule BatchPlease.FileBatcher do
         Poison.encode(item)
       :else ->
         raise UndefinedFunctionError, message: "no `encode` function was provided, and `Poison.encode/1` is not available"
-    end
-  end
-
-  defp do_decode(batch, item) do
-    cond do
-      batch.decode ->
-        batch.decode.(item)
-      {:module, _} = Code.ensure_loaded(Poison) ->
-        Poison.decode(item)
-      :else ->
-        raise UndefinedFunctionError, message: "no `decode` function was provided, and `Poison.decode/1` is not available"
     end
   end
 
