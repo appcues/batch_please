@@ -22,8 +22,11 @@ defmodule BatchPlease.MemoryBatcher do
   end
 
   @doc false
-  def batch_init(_opts) do
-    {:ok, %{items: []}}
+  def batch_init(opts) do
+    {:ok, %{
+      opts: opts,
+      items: []
+    }}
   end
 
   @doc false

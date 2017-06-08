@@ -17,6 +17,7 @@ defmodule BatchPlease.FileBatcher do
   Defaults to `Poison.decode/1`.
   """
   @type batch :: %{
+    opts: Keyword.t,
     filename: String.t,
     file: File.io_device,
     encode: ((item) -> {:ok, binary} | {:error, String.t}),
@@ -45,6 +46,7 @@ defmodule BatchPlease.FileBatcher do
          {:ok, file} <- File.open(filename, [:write])
     do
       {:ok, %{
+        opts: opts,
         filename: filename,
         file: file,
         encode: opts[:encode],
