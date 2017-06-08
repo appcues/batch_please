@@ -89,7 +89,8 @@ defmodule BatchPlease.FileBatcher do
   end
 
   defp make_filename(dir) do
-    "#{dir}/#{:erlang.system_time(:milli_seconds)}.batch"
+    rand = :random.uniform() |> to_string |> String.replace(~r/^0\./, "")
+    "#{dir}/#{:erlang.system_time(:milli_seconds)}_#{rand}.batch"
   end
 
   defmacro __using__(opts) do

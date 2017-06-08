@@ -89,7 +89,7 @@ defmodule BatchPlease.Impl do
 
   @doc false
   def handle_info({:timeout, _timer, :flush}, state) do
-    GenServer.cast(self, {:flush, nil})  # TODO put error handling here
+    GenServer.cast(self(), {:flush, nil})  # TODO put error handling here
     {:noreply, set_timer(state)}
   end
 
@@ -199,7 +199,7 @@ defmodule BatchPlease.Impl do
 
   defp set_timer(state) do
     if state.flush_timer, do: :erlang.cancel_timer(state.flush_timer)
-    timer = :erlang.start_timer(state.config.flush_interval, self, :flush)
+    timer = :erlang.start_timer(state.config.flush_interval, self(), :flush)
     {:ok, new_state} = handle_flush(state)
     %{new_state | flush_timer: timer}
   end
