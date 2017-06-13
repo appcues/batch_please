@@ -200,8 +200,7 @@ defmodule BatchPlease.Impl do
   defp set_timer(state) do
     if state.flush_timer, do: :erlang.cancel_timer(state.flush_timer)
     timer = :erlang.start_timer(state.config.flush_interval, self(), :flush)
-    {:ok, new_state} = handle_flush(state)
-    %{new_state | flush_timer: timer}
+    %{state | flush_timer: timer}
   end
 
 
