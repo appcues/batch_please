@@ -211,7 +211,9 @@ defmodule BatchPlease.Impl do
   defp set_timer(%{config: %{flush_interval: nil}}=state), do: state
 
   defp set_timer(state) do
-    timer = :erlang.start_timer(state.config.flush_interval, self(), :flush)
+    # add 0-20% jitter
+    jitter = :random.uniform(div(state.config.flush_interval, 5))
+    timer = :erlang.start_timer(state.config.flush_interval + jitter, self(), :flush)
     %{cancel_timer(state) | flush_timer: timer}
   end
 
