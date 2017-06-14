@@ -1,6 +1,7 @@
 defmodule BatchPlease.Impl do
   @moduledoc false
 
+  require Logger
   import BatchPlease.DynamicResolvers
 
 
@@ -92,6 +93,13 @@ defmodule BatchPlease.Impl do
     GenServer.cast(self(), {:flush, nil})  # TODO put error handling here
     {:noreply, cancel_timer(state)}
   end
+
+  def handle_info(msg, state) do
+    Logger.warn("unrecognized message to handle_info: #{inspect(msg)}")
+    Logger.warn("state: #{inspect(state)}")
+    {:noreply, state}
+  end
+
 
   @doc false
   def terminate(_reason, state) do
