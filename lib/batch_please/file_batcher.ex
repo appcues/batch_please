@@ -68,8 +68,8 @@ defmodule BatchPlease.FileBatcher do
   defp create_file_unless_exists(batch), do: {:ok, batch}
 
   @doc false
-  def batch_add_item(batch, item) do
-    with {:ok, batch} <- create_file_unless_exists(batch),
+  def batch_add_item(batch_maybe_without_file, item) do
+    with {:ok, batch} <- create_file_unless_exists(batch_maybe_without_file),
          {:ok, enc_item} <- do_encode(batch, item),
          encoded_item <- String.replace_trailing(enc_item, "\n", ""),
          :ok <- IO.binwrite(batch.file, encoded_item <> "\n")
