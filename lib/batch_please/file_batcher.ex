@@ -40,23 +40,37 @@ defmodule BatchPlease.FileBatcher do
   """
   def batch_init(opts) do
     dir = (opts[:batch_directory] || "/tmp") |> String.replace_trailing("/", "")
-    filename = make_filename(dir)
 
-    with :ok <- File.mkdir_p!(dir),
-         {:ok, file} <- File.open(filename, [:write])
+    with :ok <- File.mkdir_p(dir)
     do
       {:ok, %{
         opts: opts,
-        filename: filename,
-        file: file,
+        dir: dir,
+        filename: nil,
+        file: nil,
         encode: opts[:encode],
       }}
     end
   end
 
+  defp create_file_unless_exists(%{file: nil, filename: nil}=batch) do
+    filename = make_filename(batch.dir)
+
+    with {:ok, file} <- File.open(filename, [:write])
+    do
+      {:ok, %{batch |
+        file: file,
+        filename: filename,
+      }}
+    end
+  end
+
+  defp create_file_unless_exists(batch), do: {:ok, batch}
+
   @doc false
   def batch_add_item(batch, item) do
-    with {:ok, enc_item} <- do_encode(batch, item),
+    with {:ok, batch} <- create_file_unless_exists(batch),
+         {:ok, enc_item} <- do_encode(batch, item),
          encoded_item <- String.replace_trailing(enc_item, "\n", ""),
          :ok <- IO.binwrite(batch.file, encoded_item <> "\n")
     do
