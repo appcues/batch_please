@@ -43,7 +43,7 @@ defmodule BatchPlease.Impl do
         last_flush: mono_now(),
         first_item_of_batch: nil,
       },
-    } |> set_timer
+    }
 
     {:ok, batch} = do_batch_init(state, opts)
 
@@ -90,7 +90,7 @@ defmodule BatchPlease.Impl do
   @doc false
   def handle_info({:timeout, _timer, :flush}, state) do
     GenServer.cast(self(), {:flush, nil})  # TODO put error handling here
-    {:noreply, set_timer(state)}
+    {:noreply, cancel_timer(state)}
   end
 
   @doc false
@@ -109,7 +109,7 @@ defmodule BatchPlease.Impl do
          {:ok, state} <- add_item_to_state(state, item),
          {:ok, state} <- autoflush_state(state)
     do
-      {:ok, state}
+      {:ok, set_timer_if_nil(state)}
     else
       {{:error, msg}, _state} -> {{:error, msg}, state}
     end
@@ -178,7 +178,7 @@ defmodule BatchPlease.Impl do
     case process(state, state.batch) do
       :ok ->
         {:ok, new_batch} = do_batch_init(state, state.opts)
-        {:ok, %{state |
+        {:ok, %{cancel_timer(state) |
           batch: new_batch,
           counts: %{state.counts |
             flushes: state.counts.flushes + 1,
@@ -195,14 +195,25 @@ defmodule BatchPlease.Impl do
   end
 
 
+  defp set_timer_if_nil(%{flush_timer: nil}=state), do: set_timer(state)
+
+  defp set_timer_if_nil(state), do: state
+
+
   defp set_timer(%{config: %{flush_interval: nil}}=state), do: state
 
   defp set_timer(state) do
-    if state.flush_timer, do: :erlang.cancel_timer(state.flush_timer)
     timer = :erlang.start_timer(state.config.flush_interval, self(), :flush)
-    %{state | flush_timer: timer}
+    %{cancel_timer(state) | flush_timer: timer}
   end
 
+
+  defp cancel_timer(%{flush_timer: nil}=state), do: state
+
+  defp cancel_timer(%{flush_timer: timer}=state) do
+    :erlang.cancel_timer(timer)
+    %{state | flush_timer: nil}
+  end
 
 
   ## Performs pre, regular, and post processing
