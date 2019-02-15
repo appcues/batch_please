@@ -112,11 +112,22 @@ defmodule BatchPlease do
   defmacro __using__(opts) do
     quote do
       use GenServer
+
+      @impl GenServer
       def init(args), do: BatchPlease.Impl.init(args ++ unquote(opts), __MODULE__)
+
+      @impl GenServer
       def handle_call(msg, from, state), do: BatchPlease.Impl.handle_call(msg, from, state)
+
+      @impl GenServer
       def handle_cast(msg, state), do: BatchPlease.Impl.handle_cast(msg, state)
+
+      @impl GenServer
       def handle_info(msg, state), do: BatchPlease.Impl.handle_info(msg, state)
+
+      @impl GenServer
       def terminate(reason, state), do: BatchPlease.Impl.terminate(reason, state)
+
       @behaviour BatchPlease
     end
   end
