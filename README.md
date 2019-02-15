@@ -6,7 +6,7 @@ or age.
 
 ## Should I use this in production?
 
-As of version 0.3.x: getting there, but no, not yet.
+Yeah, I don't think anything bad will happen.
 
 ## Installation
 
@@ -14,7 +14,7 @@ As of version 0.3.x: getting there, but no, not yet.
 
   ```elixir
   def deps do
-    [{:batch_please, "~> 0.3.0"}]
+    [{:batch_please, "~> 0.5.0"}]
   end
   ```
 
@@ -25,6 +25,10 @@ As of version 0.3.x: getting there, but no, not yet.
     [applications: [:batch_please]]
   end
   ```
+
+## Contributors
+
+Thanks to [@eoinkelly](https://github.com/eoinkelly) for patches!
 
 ## Copyright and License
 

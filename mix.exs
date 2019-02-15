@@ -5,7 +5,7 @@ defmodule BatchPlease.Mixfile do
     [app: :batch_please,
      description: "A library for collecting and processing batches of data",
      package: package(),
-     version: "0.4.4",
+     version: "0.5.0",
      elixir: "~> 1.3",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,

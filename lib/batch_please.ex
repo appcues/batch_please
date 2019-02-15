@@ -193,7 +193,7 @@ defmodule BatchPlease do
   A map representing the state of the current batch.
   Contents of this map are implementation-specific.
   """
-  @type batch :: %{}
+  @type batch :: map
 
   @typedoc ~S"""
   Represents the return value of functions which generate a new batch state
