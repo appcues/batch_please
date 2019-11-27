@@ -230,7 +230,7 @@ defmodule BatchPlease.Impl do
   @spec process(BatchPlease.state, BatchPlease.batch) :: BatchPlease.ok_or_error
   defp process(state, batch) do
     with {:ok, batch} <- do_batch_pre_flush(state, batch),
-         :ok <- do_batch_flush(state, batch)
+         {:ok, _} <- do_batch_flush(state, batch)
     do
       do_batch_post_flush(state, batch)
     end
